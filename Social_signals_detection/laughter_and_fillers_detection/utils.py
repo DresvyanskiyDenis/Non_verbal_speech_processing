@@ -1,7 +1,14 @@
+import re
+from enum import Enum
+
 import numpy as np
 import pandas as pd
 from scipy.io import wavfile
 
+class label_type(Enum):
+    garbage=0
+    filler=1
+    laughter=2
 
 def how_many_windows_do_i_need(length_sequence, window_size, step):
     """This function calculates how many windows do you need
@@ -20,7 +27,6 @@ def how_many_windows_do_i_need(length_sequence, window_size, step):
     :param step: int
     :return: int, number of windows needed for this sequence
     """
-
     start_idx=0
     counter=0
     while True:
@@ -32,8 +38,80 @@ def how_many_windows_do_i_need(length_sequence, window_size, step):
         counter+=1
     return counter
 
+
+"Что я вообще делаю? Найди правильное решение, тупо загружать файлы и лэйблы к ним" \
+" можно, например, создать класс data_instance, а потом класс, содержащий их в листе и проводящий" \
+" с ними операции обработки. лэйблы там же"
+
+def load_wav_file(path_to_data):
+    frame_rate, data = wavfile.read(path_to_data)
+    return frame_rate, data
+
+def load_labels(path_to_labels):
+    filenames_and_labels=[]
+    with open(path_to_labels) as fp:
+        line=fp.readline()
+
+        while line:
+            line = fp.readline().replace('\n','')
+            list_of_lines=[]
+            while line!='.':
+                print(line)
+                if line.find(".")==-1:
+                    list_of_lines.append(line)
+                else:
+                    filename = line.replace('\"', '').replace('*', '').replace('/', '')
+                line = fp.readline().replace('\n','')
+            filenames_and_labels.append([filename, list_of_lines])
+            print(line)
+            line = fp.readline().replace('\n','')
+    return filenames_and_labels
+
+
+
+def convert_parsed_lines_to_num_classes(parsed_list, length_label_sequence=1100):
+    filenames_labels={}
+    for idx_list in range(len(parsed_list)):
+        instance_lines=parsed_list[idx_list][1]
+        instance_labels=np.zeros(shape=(length_label_sequence,))
+        for line in instance_lines:
+            tmp=line.split(' ')
+            start_idx=int(np.array(tmp[0]).astype('int') / 100000)
+            end_idx = int(np.array(tmp[1]).astype('int') / 100000)
+            label_value=label_type[tmp[2]].value
+            instance_labels[start_idx:end_idx]=label_value
+        filenames_labels[parsed_list[idx_list][0]] =instance_labels.astype('int32')
+    return filenames_labels
+
+
+
+
+
+
+
+
+class database_instance():
+    """This class represents one instance of database,
+       including data and labels"""
+
+    def __init__(self):
+        """Initialization
+
+        :param window_size: int, length of window, which need for cutting file on windows
+        :param window_step: int
+        """
+        self.window_size = None
+        self.window_step = None
+        self.data = None
+        self.cutted_data = None
+
+    def load(self, loading_function, path_to_data):
+        return loading_function(path_to_data)
+
+
+
 class data_instance():
-    """this class is created to present one instance of data (e.g. one audiofile in entire database)"""
+    """This class is created to present one instance of data (e.g. one audiofile in entire database)"""
 
     def __init__(self, window_size, window_step):
         """Initialization
@@ -63,8 +141,6 @@ class data_instance():
             print('first size of data:', self.data.shape)
             self.data=self.data[::ratio]
             print('size of data after reduction:', self.data.shape)
-
-
 
 
     def cut_data_to_length(self, length_to_cut_data):
@@ -142,3 +218,15 @@ class data_instance():
 
     def get_data(self):
         return self.data
+
+
+
+
+if __name__ == "__main__":
+    path_to_labels='C:\\Users\\Dresvyanskiy\\Desktop\\Databases\\ComParE_2013_Vocalization\\ComParE2013_Voc\\lab\\train.mlf'
+    path_to_data='C:\\Users\\Dresvyanskiy\\Desktop\\Databases\\ComParE_2013_Vocalization\\ComParE2013_Voc\\wav\\S0001.wav'
+    res=load_labels(path_to_labels)
+    print(res)
+    convert_parsed_lines_to_num_classes(res)
+    #print(label_type['garbage'].value)
+    a=load_wav_file(path_to_data)
