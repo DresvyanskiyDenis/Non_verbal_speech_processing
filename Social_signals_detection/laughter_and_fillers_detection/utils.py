@@ -45,15 +45,14 @@ def how_many_windows_do_i_need(length_sequence, window_size, step):
 
 def load_wav_file(path_to_data):
     frame_rate, data = wavfile.read(path_to_data)
-    return frame_rate, data
+    return data, frame_rate
 
 def load_labels(path_to_labels):
     filenames_and_labels=[]
     with open(path_to_labels) as fp:
         line=fp.readline()
-
+        line = fp.readline().replace('\n', '')
         while line:
-            line = fp.readline().replace('\n','')
             list_of_lines=[]
             while line!='.':
                 print(line)
@@ -71,6 +70,7 @@ def load_labels(path_to_labels):
 
 def convert_parsed_lines_to_num_classes(parsed_list, length_label_sequence=1100):
     filenames_labels={}
+    labels_frame_rate=100
     for idx_list in range(len(parsed_list)):
         instance_lines=parsed_list[idx_list][1]
         instance_labels=np.zeros(shape=(length_label_sequence,))
@@ -81,12 +81,7 @@ def convert_parsed_lines_to_num_classes(parsed_list, length_label_sequence=1100)
             label_value=label_type[tmp[2]].value
             instance_labels[start_idx:end_idx]=label_value
         filenames_labels[parsed_list[idx_list][0]] =instance_labels.astype('int32')
-    return filenames_labels
-
-
-
-
-
+    return filenames_labels, labels_frame_rate
 
 
 
@@ -95,130 +90,72 @@ class database_instance():
        including data and labels"""
 
     def __init__(self):
-        """Initialization
 
-        :param window_size: int, length of window, which need for cutting file on windows
-        :param window_step: int
-        """
-        self.window_size = None
-        self.window_step = None
+        self.filename=None
+        self.data_window_size = None
+        self.data_window_step = None
+        self.labels_window_size = None
+        self.labels_window_step = None
         self.data = None
+        self.data_frame_rate=None
         self.cutted_data = None
+        self.labels = None
+        self.labels_frame_rate=None
+        self.cutted_labels = None
 
-    def load(self, loading_function, path_to_data):
-        return loading_function(path_to_data)
+    def load_data(self, path_to_data):
+        self.data, self.data_frame_rate=load_wav_file(path_to_data)
+        self.filename=path_to_data.split('/')[-1]
 
+    def load_labels(self, path_to_labels):
+        unparsed_labels=load_labels(path_to_labels)
+        dict_labels, self.labels_frame_rate=convert_parsed_lines_to_num_classes(unparsed_labels)
+        self.labels=dict_labels[self.filename]
 
-
-class data_instance():
-    """This class is created to present one instance of data (e.g. one audiofile in entire database)"""
-
-    def __init__(self, window_size, window_step):
-        """Initialization
-
-        :param window_size: int, length of window, which need for cutting file on windows
-        :param window_step: int
-        """
-        self.window_size=window_size
-        self.window_step=window_step
-        self.data=None
-        self.cutted_data=None
-
-    def load_data(self, path_to_data, needed_frame_rate=-1):
-        """This function load data from corresponding path
-           If you need to reduce frame rate of file, use variable
-           needed_frame_rate (e.g. reducing from 48000 to 16000)
-
-        :param path_to_data: string
-        :param needed_frame_rate: int
-        """
-        self.frame_rate, self.data = wavfile.read(path_to_data)
-        if needed_frame_rate!=-1 and needed_frame_rate!=self.frame_rate:
-            ratio=self.frame_rate/needed_frame_rate
-            if ratio<1: ratio=1./ratio
-            ratio=int(ratio)
-            self.frame_rate=needed_frame_rate
-            print('first size of data:', self.data.shape)
-            self.data=self.data[::ratio]
-            print('size of data after reduction:', self.data.shape)
-
-
-    def cut_data_to_length(self, length_to_cut_data):
-        """ Cut the right side of data
-        :param length_to_cut_data: int
-        """
-        self.data=self.data[:length_to_cut_data]
-
-    def cut_data_on_windows(self, cutting_mode, padding_mode=None):
-        """This function cut data on windows
-        if cutting_mode=='with_padding' then missing data will added to last window
-        e.g. window_size=4, window_step=3
-        last_step-1 -> ...|_ _ _| _
-        last_step   -> ..._ _ _ |_
-        As we can see, we are missing 2 'points'. So, if we use function with mode 'with_padding'
-        it just add 2 specified values like
-        to the right, if padding_mode=='right'
-            last_step   -> ..._ _ _ |_ v v|  where v is value (by default equals 0)
-        to the left, if padding_mode=='left'
-            last_step   -> ..._ _ _ |v v _|  where v is value (by default equals 0)
-        to the center, if padding_mode=='center'
-            last_step   -> ..._ _ _ |v _ v|  where v is value (by default equals 0)
-
-        if cutting_mode=='without_padding' then start point of window will shift to end-size_of_window
-        e. g. last_step-1 -> ...|_ _ _| _
-              last_step   -> ..._ |_ _ _|
-
-        :param cutting_mode: string
-        :param padding_mode: string
-        :return: ndarray, dtype 'float32', data cutted on windows
-        """
-        num_windows=how_many_windows_do_i_need(self.data.shape[0], self.window_size, self.window_step)
-        cutted_data=np.zeros(shape=(num_windows, self.window_size))
-        start=0
-        for idx_window in range(num_windows-1):
-            end=start+self.window_size
-            cutted_data[idx_window]=self.data[start:end]
-            start+=self.window_step
-        # last window
-        if cutting_mode=='with_padding':
-            end=start+self.window_size
-            cutted_data[num_windows-1]=self.pad_the_sequence(self.data[start:end], mode=padding_mode)
-        elif cutting_mode=='without_padding':
-            end=self.data.shape[0]
-            start=end-self.window_size
-            cutted_data[num_windows-1]=self.data[start:end]
-        else:
-            raise AttributeError('cutting_mode can be either with_padding or without_padding')
-        return cutted_data.astype('float32')
-
-    def load_and_cut_data(self, path_to_data, cutting_mode, padding_mode=None):
-        """This function load and then cut data with corresponding parameters
-
-        :param path_to_data: string
-        :param cutting_mode: string, 'with_padding' or 'without_padding'
-        :param padding_mode: string, 'right', 'left' or 'center', availible if cutting_mode=='with_padding'
-        :return: ndarray (num_windows, size_of_window), loaded and then cutted data
-        """
-        self.load_data(path_to_data)
-        self.cutted_data=self.cut_data_on_windows(cutting_mode=cutting_mode, padding_mode=padding_mode)
-
-    def pad_the_sequence(self, sequence, mode, padding_value=0):
-        result=np.ones(shape=(self.window_size))*padding_value
+    def pad_the_sequence(self, sequence, window_size,  mode, padding_value=0):
+        result=np.ones(shape=(window_size))*padding_value
         if mode=='left':
-            result[(self.window_size-sequence.shape[0]):]=sequence
+            result[(window_size-sequence.shape[0]):]=sequence
         elif mode=='right':
             result[:sequence.shape[0]]=sequence
         elif mode=='center':
-            start=(self.window_size-sequence.shape[0])//2
+            start=(window_size-sequence.shape[0])//2
             end=start+sequence.shape[0]
             result[start:end]=sequence
         else:
             raise AttributeError('mode can be either left, right or center')
         return result
 
-    def get_data(self):
-        return self.data
-
+    def cut_data_and_labels_on_windows(self, window_size, window_step):
+        self.data_window_size=window_size*self.data_frame_rate
+        self.data_window_step=window_step*self.data_frame_rate
+        self.labels_window_size=window_size*self.labels_frame_rate
+        self.labels_window_step=window_step*self.labels_frame_rate
+        # arrays for cutting window
+        num_windows = how_many_windows_do_i_need(self.data.shape[0], self.data_window_size, self.data_window_step)
+        self.cutted_data = np.zeros(shape=(num_windows, self.data_window_size))
+        self.cutted_labels= np.zeros(shape=(num_windows, self.labels_window_size))
+        # start of cutting
+        data_start_idx=0
+        labels_start_idx=0
+        for idx_window in range(num_windows-1):
+            data_end_idx=data_start_idx+self.data_window_size
+            labels_end_idx=labels_start_idx+self.labels_window_size
+            self.cutted_data[idx_window]=self.data[data_start_idx:data_end_idx]
+            self.cutted_labels[idx_window]=self.labels[labels_start_idx:labels_end_idx]
+            data_start_idx=data_end_idx
+            labels_start_idx=labels_end_idx
+        # processing the data on last step of cutting
+        # (remaining sequence can be less than window size at the end of data raw)
+        data_end_idx=self.data.shape[0]
+        data_start_idx=data_end_idx-self.data_window_size
+        labels_end_idx=self.labels.shape[0]
+        labels_start_idx=labels_end_idx-self.labels_window_size
+        self.cutted_data[num_windows-1]=self.data[data_start_idx:data_end_idx]
+        self.cutted_labels[num_windows-1]=self.labels[labels_start_idx:labels_end_idx]
+        self.cutted_data=self.cutted_data.astype('float32')
+        self.cutted_labels=self.cutted_labels.astype('int32')
+        return self.cutted_data, self.cutted_labels
 
 
 
@@ -227,6 +164,6 @@ if __name__ == "__main__":
     path_to_data='C:\\Users\\Dresvyanskiy\\Desktop\\Databases\\ComParE_2013_Vocalization\\ComParE2013_Voc\\wav\\S0001.wav'
     res=load_labels(path_to_labels)
     print(res)
-    convert_parsed_lines_to_num_classes(res)
+    b=convert_parsed_lines_to_num_classes(res)
     #print(label_type['garbage'].value)
     a=load_wav_file(path_to_data)
