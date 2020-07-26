@@ -30,7 +30,7 @@ def how_many_windows_do_i_need(length_sequence, window_size, step):
     start_idx=0
     counter=0
     while True:
-        if start_idx+window_size>length_sequence:
+        if start_idx+window_size>=length_sequence:
             break
         start_idx+=step
         counter+=1
@@ -59,7 +59,7 @@ def load_labels(path_to_labels):
                 if line.find(".")==-1:
                     list_of_lines.append(line)
                 else:
-                    filename = line.replace('\"', '').replace('*', '').replace('/', '')
+                    filename = line.replace('\"', '').replace('*', '').replace('/', '').split('.')[0]
                 line = fp.readline().replace('\n','')
             filenames_and_labels.append([filename, list_of_lines])
             print(line)
@@ -105,7 +105,7 @@ class database_instance():
 
     def load_data(self, path_to_data):
         self.data, self.data_frame_rate=load_wav_file(path_to_data)
-        self.filename=path_to_data.split('/')[-1]
+        self.filename=path_to_data.split('\\')[-1].split('.')[0]
 
     def load_labels(self, path_to_labels):
         unparsed_labels=load_labels(path_to_labels)
@@ -127,10 +127,10 @@ class database_instance():
         return result
 
     def cut_data_and_labels_on_windows(self, window_size, window_step):
-        self.data_window_size=window_size*self.data_frame_rate
-        self.data_window_step=window_step*self.data_frame_rate
-        self.labels_window_size=window_size*self.labels_frame_rate
-        self.labels_window_step=window_step*self.labels_frame_rate
+        self.data_window_size=int(window_size*self.data_frame_rate)
+        self.data_window_step=int(window_step*self.data_frame_rate)
+        self.labels_window_size=int(window_size*self.labels_frame_rate)
+        self.labels_window_step=int(window_step*self.labels_frame_rate)
         # arrays for cutting window
         num_windows = how_many_windows_do_i_need(self.data.shape[0], self.data_window_size, self.data_window_step)
         self.cutted_data = np.zeros(shape=(num_windows, self.data_window_size))
@@ -143,8 +143,8 @@ class database_instance():
             labels_end_idx=labels_start_idx+self.labels_window_size
             self.cutted_data[idx_window]=self.data[data_start_idx:data_end_idx]
             self.cutted_labels[idx_window]=self.labels[labels_start_idx:labels_end_idx]
-            data_start_idx=data_end_idx
-            labels_start_idx=labels_end_idx
+            data_start_idx=data_start_idx+self.data_window_step
+            labels_start_idx=labels_start_idx+self.labels_window_step
         # processing the data on last step of cutting
         # (remaining sequence can be less than window size at the end of data raw)
         data_end_idx=self.data.shape[0]
@@ -157,13 +157,18 @@ class database_instance():
         self.cutted_labels=self.cutted_labels.astype('int32')
         return self.cutted_data, self.cutted_labels
 
+    def load_and_preprocess_data_and_labels(self, path_to_data, path_to_labels):
+        self.load_data(path_to_data)
+        self.load_labels(path_to_labels)
+
 
 
 if __name__ == "__main__":
     path_to_labels='C:\\Users\\Dresvyanskiy\\Desktop\\Databases\\ComParE_2013_Vocalization\\ComParE2013_Voc\\lab\\train.mlf'
     path_to_data='C:\\Users\\Dresvyanskiy\\Desktop\\Databases\\ComParE_2013_Vocalization\\ComParE2013_Voc\\wav\\S0001.wav'
-    res=load_labels(path_to_labels)
-    print(res)
-    b=convert_parsed_lines_to_num_classes(res)
-    #print(label_type['garbage'].value)
-    a=load_wav_file(path_to_data)
+    window_size=1.5
+    window_step=0.5
+    instance=database_instance()
+    instance.load_and_preprocess_data_and_labels(path_to_data, path_to_labels)
+    instance.cut_data_and_labels_on_windows(window_size, window_step)
+
