@@ -1,3 +1,4 @@
+import os
 import re
 from enum import Enum
 
@@ -38,10 +39,6 @@ def how_many_windows_do_i_need(length_sequence, window_size, step):
         counter+=1
     return counter
 
-
-"Что я вообще делаю? Найди правильное решение, тупо загружать файлы и лэйблы к ним" \
-" можно, например, создать класс data_instance, а потом класс, содержащий их в листе и проводящий" \
-" с ними операции обработки. лэйблы там же"
 
 def load_wav_file(path_to_data):
     frame_rate, data = wavfile.read(path_to_data)
@@ -84,8 +81,31 @@ def convert_parsed_lines_to_num_classes(parsed_list, length_label_sequence=1100)
     return filenames_labels, labels_frame_rate
 
 
+class Database():
 
-class database_instance():
+    def __init__(self, path_to_data, path_to_labels):
+        self.path_to_data=path_to_data
+        self.path_to_labels=path_to_labels
+        self.data_frame_rate=None
+        self.labels_frame_rate=None
+        self.data_instances=[]
+
+    def load_all_data_and_labels(self):
+        data_filenames=os.listdir(self.path_to_data)
+        for data_filename in data_filenames:
+            instance=Database_instance()
+            instance.load_and_preprocess_data_and_labels(self.path_to_data+data_filename, self.path_to_labels)
+            self.data_instances.append(instance)
+        self.data_frame_rate=self.data_instances[0].data_frame_rate
+        self.labels_frame_rate = self.data_instances[0].labels_frame_rate
+
+    def cut_all_instances(self, window_size, window_step):
+        for i in range(len(self.data_instances)):
+            self.data_instances[i].cut_data_and_labels_on_windows(window_size, window_step)
+
+
+
+class Database_instance():
     """This class represents one instance of database,
        including data and labels"""
 
