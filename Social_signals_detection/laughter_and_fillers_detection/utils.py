@@ -125,6 +125,13 @@ class Database():
         result_labels = np.vstack(tmp_labels)
         return result_data, result_labels
 
+    def reduce_labels_frame_rate(self, needed_frame_rate):
+        ratio=int(self.labels_frame_rate/needed_frame_rate)
+        self.labels_frame_rate=needed_frame_rate
+        for i in range(len(self.data_instances)):
+            self.data_instances[i].labels=self.data_instances[i].labels[::ratio]
+            self.data_instances[i].labels_frame_rate=needed_frame_rate
+
 
 
 class Database_instance():
