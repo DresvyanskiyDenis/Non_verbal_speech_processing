@@ -52,14 +52,14 @@ def load_labels(path_to_labels):
         while line:
             list_of_lines=[]
             while line!='.':
-                print(line)
+                #print(line)
                 if line.find(".")==-1:
                     list_of_lines.append(line)
                 else:
                     filename = line.replace('\"', '').replace('*', '').replace('/', '').split('.')[0]
                 line = fp.readline().replace('\n','')
             filenames_and_labels.append([filename, list_of_lines])
-            print(line)
+            #print(line)
             line = fp.readline().replace('\n','')
     return filenames_and_labels
 
@@ -77,8 +77,13 @@ def convert_parsed_lines_to_num_classes(parsed_list, length_label_sequence=1100)
             end_idx = int(np.array(tmp[1]).astype('int') / 100000)
             label_value=label_type[tmp[2]].value
             instance_labels[start_idx:end_idx]=label_value
-        filenames_labels[parsed_list[idx_list][0]] =instance_labels.astype('int32')
+        filenames_labels[parsed_list[idx_list][0]] =instance_labels.astype('int16')
     return filenames_labels, labels_frame_rate
+
+def load_labels_get_dict(path_to_labels):
+    unparsed_labels=load_labels(path_to_labels)
+    labels_dict, labels_frame_rate=convert_parsed_lines_to_num_classes(unparsed_labels)
+    return labels_dict, labels_frame_rate
 
 
 class Database():
@@ -91,10 +96,12 @@ class Database():
         self.data_instances=[]
 
     def load_all_data_and_labels(self):
-        data_filenames=os.listdir(self.path_to_data)
-        for data_filename in data_filenames:
-            instance=Database_instance()
-            instance.load_and_preprocess_data_and_labels(self.path_to_data+data_filename, self.path_to_labels)
+        dict_labels, self.labels_frame_rate = load_labels_get_dict(self.path_to_labels)
+        for data_filename in dict_labels:
+            instance = Database_instance()
+            instance.load_data(self.path_to_data + data_filename+'.wav')
+            instance.labels_frame_rate = self.labels_frame_rate
+            instance.labels = dict_labels[data_filename.split('.')[0]]
             self.data_instances.append(instance)
         self.data_frame_rate=self.data_instances[0].data_frame_rate
         self.labels_frame_rate = self.data_instances[0].labels_frame_rate
@@ -102,6 +109,21 @@ class Database():
     def cut_all_instances(self, window_size, window_step):
         for i in range(len(self.data_instances)):
             self.data_instances[i].cut_data_and_labels_on_windows(window_size, window_step)
+
+    def get_all_concatenated_cutted_data_and_labels(self):
+        data_window_size=self.data_instances[0].data_window_size
+        labels_window_size=self.data_instances[0].labels_window_size
+        result_data=np.zeros(shape=(0,data_window_size))
+        result_labels=np.zeros(shape=(0, labels_window_size))
+        tmp_data=[]
+        tmp_labels=[]
+        for i in range(len(self.data_instances)):
+            tmp_data.append(self.data_instances[i].cutted_data)
+            tmp_labels.append(self.data_instances[i].cutted_labels)
+
+        result_data=np.vstack(tmp_data)
+        result_labels = np.vstack(tmp_labels)
+        return result_data, result_labels
 
 
 
@@ -127,10 +149,6 @@ class Database_instance():
         self.data, self.data_frame_rate=load_wav_file(path_to_data)
         self.filename=path_to_data.split('\\')[-1].split('.')[0]
 
-    def load_labels(self, path_to_labels):
-        unparsed_labels=load_labels(path_to_labels)
-        dict_labels, self.labels_frame_rate=convert_parsed_lines_to_num_classes(unparsed_labels)
-        self.labels=dict_labels[self.filename]
 
     def pad_the_sequence(self, sequence, window_size,  mode, padding_value=0):
         result=np.ones(shape=(window_size))*padding_value
@@ -176,6 +194,10 @@ class Database_instance():
         self.cutted_data=self.cutted_data.astype('float32')
         self.cutted_labels=self.cutted_labels.astype('int32')
         return self.cutted_data, self.cutted_labels
+
+    def load_labels(self, path_to_labels):
+        dict_labels, self.labels_frame_rate=load_labels_get_dict(path_to_labels)
+        self.labels=dict_labels[self.filename]
 
     def load_and_preprocess_data_and_labels(self, path_to_data, path_to_labels):
         self.load_data(path_to_data)
