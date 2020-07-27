@@ -35,8 +35,10 @@ if __name__ == "__main__":
     path_to_data = 'C:\\Users\\Dresvyanskiy\\Desktop\\Databases\\ComParE_2013_Vocalization\\ComParE2013_Voc\\wav\\'
     window_size=6
     window_step=3
+    needed_labels_time_frame=25
     database=Database(path_to_data, path_to_labels)
     database.load_all_data_and_labels()
+    database.reduce_labels_frame_rate(needed_labels_time_frame)
     database.cut_all_instances(window_size, window_step)
     train_data, train_labels=database.get_all_concatenated_cutted_data_and_labels()
     # permutate training data
@@ -51,6 +53,6 @@ if __name__ == "__main__":
     model=create_model(input_shape)
     model.summary()
     model.compile(optimizer='Adam', loss='categorical_crossentropy')
-    model.fit(train_data, train_labels)
+    model.fit(train_data, train_labels, epochs=10, batch_size=32)
 
 
