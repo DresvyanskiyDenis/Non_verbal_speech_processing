@@ -154,7 +154,7 @@ class Database_instance():
 
     def load_data(self, path_to_data):
         self.data, self.data_frame_rate=load_wav_file(path_to_data)
-        self.filename=path_to_data.split('\\')[-1].split('.')[0]
+        self.filename=path_to_data.split('\\')[-1].split('/')[-1].split('.')[0]
 
 
     def pad_the_sequence(self, sequence, window_size,  mode, padding_value=0):
