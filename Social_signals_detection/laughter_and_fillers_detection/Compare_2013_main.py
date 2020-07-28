@@ -26,8 +26,18 @@ def create_model(input_shape):
     model.add(tf.keras.layers.LSTM(128, return_sequences=True))
     model.add(tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(3, activation='softmax')))
     print(model.summary())
-
     return model
+
+def delete_zeros_labels_rows(data, labels):
+    counter=0
+    new_data=np.zeros(data.shape)
+    new_labels=np.zeros(labels.shape)
+    for i in range(labels.shape[0]):
+        if np.count_nonzero(labels[i])!=0:
+            new_labels[counter]=labels[i]
+            new_data[counter]=data[i]
+            counter+=1
+    return new_data[:counter], new_labels[:counter]
 
 if __name__ == "__main__":
     # params
@@ -46,6 +56,7 @@ if __name__ == "__main__":
     train_data, train_labels= train_data[permutation], train_labels[permutation]
     # transform categorical labels to probabilistic (with keras)
     # create for data one additional dimension
+    train_data, train_labels=delete_zeros_labels_rows(train_data, train_labels)
     train_data=train_data[..., np.newaxis]
     train_labels=tf.keras.utils.to_categorical(train_labels)
     # create and configure the model
