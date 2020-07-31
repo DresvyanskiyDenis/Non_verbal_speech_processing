@@ -178,6 +178,7 @@ class Database():
             instance.load_data(self.path_to_data + data_filename+'.wav')
             instance.labels_frame_rate = self.labels_frame_rate
             instance.labels = dict_labels[data_filename.split('.')[0]]
+            instance.generate_timesteps_for_labels()
             self.data_instances.append(instance)
         self.data_frame_rate=self.data_instances[0].data_frame_rate
         self.labels_frame_rate = self.data_instances[0].labels_frame_rate
@@ -262,11 +263,7 @@ class Database():
 class Database_instance():
     """This class represents one instance of database,
        including data and labels"""
-
-    #TODO: реализовать функцию усреднения предсказаний, если окна пересекаются
-    # для этого еще необходим массив таймстепов
     def __init__(self):
-
         self.filename=None
         self.data_window_size = None
         self.data_window_step = None
@@ -278,9 +275,13 @@ class Database_instance():
         self.labels = None
         self.labels_frame_rate=None
         self.cutted_labels = None
+        self.labels_timesteps= None
+        self.cutted_labels_timesteps=None
+        self.cutted_predictions=None
+        self.predictions=None
 
     def load_data(self, path_to_data):
-        """ THis function load data and corresponding frame rate from wav type file
+        """ This function load data and corresponding frame rate from wav type file
 
         :param path_to_data: String
         :return: None
@@ -368,9 +369,11 @@ class Database_instance():
 
         self.cutted_data=self.cut_sequence_on_windows(self.data, self.data_window_size, self.data_window_step)
         self.cutted_labels=self.cut_sequence_on_windows(self.labels, self.labels_window_size, self.labels_window_step)
+        self.cutted_labels_timesteps=self.cut_sequence_on_windows(self.labels_timesteps, self.labels_window_size, self.labels_window_step)
         self.cutted_data = self.cutted_data.astype('float32')
         self.cutted_labels = self.cutted_labels.astype('int32')
-        return self.cutted_data, self.cutted_labels
+        self.cutted_labels_timesteps= self.cutted_labels_timesteps.astype('float32')
+        return self.cutted_data, self.cutted_labels, self.cutted_labels_timesteps
 
 
     def load_labels(self, path_to_labels):
@@ -395,6 +398,34 @@ class Database_instance():
         self.load_data(path_to_data)
         self.load_labels(path_to_labels)
 
+    def generate_timesteps_for_labels(self):
+        """This function generates timesteps for labels with corresponding labels_frame_rate
+           After executing it will be saved in field self.labels_timesteps
+        :return: None
+        """
+        label_timestep_in_sec=1./self.labels_timesteps
+        timesteps=np.array([i for i in range(self.labels.shape[0])], dtype='float32')
+        timesteps=timesteps*label_timestep_in_sec
+        self.labels_timesteps=timesteps
+
+#TODO: realize this class and make comments
+class Metric_calculator():
+
+    def __init__(self):
+        self.ground_truth=None
+        self.predictions=None
+        self.cutted_predictions=None
+        self.cutted_labels_timesteps=None
+
+    def average_cutted_predictions_by_timestep(self):
+        pass
+
+    def calculate_AUC_ROC(self):
+        pass
+
+
+
+
 
 
 if __name__ == "__main__":
@@ -402,7 +433,7 @@ if __name__ == "__main__":
     path_to_data='C:\\Users\\Dresvyanskiy\\Desktop\\Databases\\ComParE_2013_Vocalization\\ComParE2013_Voc\\wav\\S0001.wav'
     window_size=1.5
     window_step=0.5
-    instance=database_instance()
-    instance.load_and_preprocess_data_and_labels(path_to_data, path_to_labels)
-    instance.cut_data_and_labels_on_windows(window_size, window_step)
+    #instance=database_instance()
+    #instance.load_and_preprocess_data_and_labels(path_to_data, path_to_labels)
+    #instance.cut_data_and_labels_on_windows(window_size, window_step)
 
