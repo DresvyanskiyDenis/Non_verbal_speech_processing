@@ -5,6 +5,7 @@ from enum import Enum
 import numpy as np
 import pandas as pd
 from scipy.io import wavfile
+from sklearn.metrics import roc_auc_score
 
 class label_type(Enum):
     """This Enum represents type of classes in ComParE_2013_Vocalization Sub-challenge
@@ -51,6 +52,7 @@ def load_wav_file(path_to_data):
     """
     frame_rate, data = wavfile.read(path_to_data)
     return data, frame_rate
+
 
 def load_labels(path_to_labels):
     """This file loads labels from one filename, which contains all labels.
@@ -408,20 +410,58 @@ class Database_instance():
         timesteps=timesteps*label_timestep_in_sec
         self.labels_timesteps=timesteps
 
-#TODO: realize this class and make comments
 class Metric_calculator():
+    """This class is created to calculate metrics.
+       Moreover, it can average cutted predictions with the help of their  cutted_labels_timesteps.
+       cutted_labels_timesteps represents timestep of each cutted prediction value. Cutted predictions comes from
+       model, which can predict values from data only partual, with defined window size
+       e.g. we have
+        cutted_prediction=np.array([
+            [1, 2, 3, 4, 5],
+            [6, 5 ,43, 2, 5],
+            [2, 65, 1, 4, 6],
+            [12, 5, 6, 34, 23]
+        ])
+        cutted_labels_timesteps=np.array([
+            [0,  0.2, 0.4, 0.6, 0.8],
+            [0.2, 0.4, 0.6, 0.8, 1],
+            [0.4, 0.6, 0.8, 1, 1.2],
+            [0.6, 0.8, 1, 1.2, 1.4],
+        ])
 
-    def __init__(self):
+    it takes, for example all predictions with timestep 0.2 and then average it -> (2+6)/2=4
+    the result array will:
+    self.predictions=[ 1.0, 4.0, 3.333, 31.0, 3.25, 5.0, 20.0, 23.0]
+    timesteps=       [0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4]
+
+
+    """
+
+    def __init__(self, cutted_predictions, cutted_labels_timesteps):
         self.ground_truth=None
         self.predictions=None
-        self.cutted_predictions=None
-        self.cutted_labels_timesteps=None
+        self.cutted_predictions=cutted_predictions
+        self.cutted_labels_timesteps=cutted_labels_timesteps
 
     def average_cutted_predictions_by_timestep(self):
-        pass
+        """This function averages cutted predictions. For more info see description of class
+        :return: None
+        """
+        cutted_predictions_flatten=self.cutted_predictions.flatten()[..., np.newaxis]
+        cutted_labels_timesteps_flatten=self.cutted_labels_timesteps.flatten()[..., np.newaxis]
+        dataframe_for_avg=pd.DataFrame(columns=['prediction','timestep'], data=np.concatenate((cutted_predictions_flatten, cutted_labels_timesteps_flatten), axis=1))
+        dataframe_for_avg=dataframe_for_avg.groupby(by=['timestep']).mean()
+        self.predictions=dataframe_for_avg['prediction'].values
 
-    def calculate_AUC_ROC(self):
-        pass
+    def calculate_AUC_ROC(self, ground_truth):
+        """This function calculates AUC_ROC based on provided ground_truth labels and saved earlier (calculated by
+        average_cutted_predictions_by_timestep function or just directly set via self.predictions field) predictions
+
+        :param ground_truth: ndarray, shape=(num_labels,)
+        :return: float, ROC_AUC score for provided data
+        """
+        self.ground_truth=ground_truth
+        return roc_auc_score(self.ground_truth, self.predictions)
 
 
 
@@ -429,11 +469,20 @@ class Metric_calculator():
 
 
 if __name__ == "__main__":
-    path_to_labels='C:\\Users\\Dresvyanskiy\\Desktop\\Databases\\ComParE_2013_Vocalization\\ComParE2013_Voc\\lab\\train.mlf'
-    path_to_data='C:\\Users\\Dresvyanskiy\\Desktop\\Databases\\ComParE_2013_Vocalization\\ComParE2013_Voc\\wav\\S0001.wav'
-    window_size=1.5
-    window_step=0.5
-    #instance=database_instance()
-    #instance.load_and_preprocess_data_and_labels(path_to_data, path_to_labels)
-    #instance.cut_data_and_labels_on_windows(window_size, window_step)
+    cutted_prediction=np.array([
+        [1,2,3,4,5],
+        [6,5,43,2,5],
+        [2,65,1,4,6],
+        [12,5,6,34,23]
+    ])
+    cutted_labels_timesteps=np.array([
+        [0,0.2,0.4,0.6,0.8],
+        [0.2, 0.4, 0.6, 0.8, 1],
+        [0.4, 0.6, 0.8, 1, 1.2],
+        [0.6, 0.8, 1, 1.2, 1.4],
+    ])
+    metric=Metric_calculator(cutted_prediction, cutted_labels_timesteps)
+    metric.average_cutted_predictions_by_timestep()
+    a=1+2
+
 
