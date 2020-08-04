@@ -228,9 +228,33 @@ class Database():
             self.data_instances[i].labels=self.data_instances[i].labels[::ratio]
             self.data_instances[i].labels_frame_rate=needed_frame_rate
 
-    def get_predictions(self, model):
-        #TODO: realize it (after realizing averaging function in Database_instance class)
-        pass
+    def calculate_AUC_ROC_score_on_all_instances(self, model):
+        """This function calculates AUC_ROC score across all instances, which is containing in self.data_instances
+           It provides averaged AUC_ROC score (as a simple unweighted average score of all calculated scores) as well as
+           dictionary contains every score with key as filename
+
+        :param model: trained keras model
+        :return: float, averaged AUC_ROC score
+                 dictionary, dictionary with scores. e.g. AUC_ROC_scores_by_filename['filename1'] will provide AUC_ROC
+                 score for filename1.wav
+        """
+        sum_AUC_ROC_score=0
+        AUC_ROC_scores_by_filename={}
+        for instance in self.data_instances:
+            cutted_data=instance.cutted_data
+            ground_truth_labels=instance.labels
+            cutted_labels_timesteps=instance.cutted_labels_timesteps
+            cutted_predictions=model.predict(cutted_data)
+            metric_calculator=Metric_calculator(cutted_predictions=cutted_predictions,
+                                                cutted_labels_timesteps=cutted_labels_timesteps)
+            metric_calculator.average_cutted_predictions_by_timestep()
+            AUC_ROC_score=metric_calculator.calculate_AUC_ROC(ground_truth=ground_truth_labels)
+            AUC_ROC_scores_by_filename[instance.filename]=AUC_ROC_score
+            sum_AUC_ROC_score+=AUC_ROC_score
+
+        averaged_AUC_ROC_score=sum_AUC_ROC_score/len(self.data_instances)
+        return averaged_AUC_ROC_score, AUC_ROC_scores_by_filename
+
 
     def shuffle_and_separate_cutted_data_on_train_and_val_sets(self, percent_of_validation):
         """This function shuffle and then separate cutted data and labels by given percent_of_validation
